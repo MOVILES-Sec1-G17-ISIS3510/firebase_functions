@@ -190,6 +190,7 @@ def notify_community_message(event: Event[DocumentSnapshot | None]) -> None:
         body=f"{author_name}: {content}",
         data={
             "type": "community_message",
+            "authorId": str(author_id),
             "communityId": str(community_id),
             "channelId": str(channel_id),
             "messageId": str(message_id),
