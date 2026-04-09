@@ -1,3 +1,4 @@
+import re
 import unicodedata
 
 from firebase_admin import firestore, initialize_app, messaging
@@ -6,6 +7,8 @@ from firebase_functions.options import set_global_options
 
 set_global_options(max_instances=10)
 initialize_app()
+
+SPORT_SPLIT_PATTERN = re.compile(r"[,;|\n/]+")
 
 
 def normalize_sport(value: str) -> str:
@@ -21,9 +24,9 @@ def normalize_sport(value: str) -> str:
     clean = " ".join(no_accents.split())
 
     aliases = {
-        "futbol": "futbol",
-        "football": "futbol",
-        "soccer": "futbol",
+        "soccer": "soccer",
+        "football": "soccer",
+        "futbol": "soccer",
         "basket": "basketball",
         "basketball": "basketball",
         "baloncesto": "basketball",
@@ -31,11 +34,31 @@ def normalize_sport(value: str) -> str:
         "tennis": "tennis",
         "running": "running",
         "correr": "running",
-        "calistenia": "calistenia",
-        "calisthenics": "calistenia",
+        "calistenia": "calisthenics",
+        "calisthenics": "calisthenics",
+        "calistennics": "calisthenics",
+        "other": "other",
     }
 
     return aliases.get(clean, clean)
+
+
+def parse_user_sports(value: object) -> set[str]:
+    if value is None:
+        return set()
+
+    if isinstance(value, (list, tuple, set)):
+        raw_values = [str(item) for item in value]
+    else:
+        raw_values = SPORT_SPLIT_PATTERN.split(str(value))
+
+    sports: set[str] = set()
+    for raw_value in raw_values:
+        sport = normalize_sport(raw_value)
+        if sport:
+            sports.add(sport)
+
+    return sports
 
 
 def collect_tokens_for_user_ids(db: firestore.Client, user_ids: set[str]) -> set[str]:
@@ -232,8 +255,8 @@ def notify_open_match_by_sport(event: Event[DocumentSnapshot | None]) -> None:
         if user_id == created_by:
             continue
 
-        user_sport = normalize_sport(str(user_data.get("mainSport") or ""))
-        if user_sport == sport:
+        user_sports = parse_user_sports(user_data.get("mainSport"))
+        if sport in user_sports:
             target_user_ids.add(user_id)
 
     if not target_user_ids:
